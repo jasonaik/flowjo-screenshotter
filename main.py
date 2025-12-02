@@ -6,12 +6,24 @@ import datetime
 import os
 
 # === CONFIG ===
-pdf_path = "data\\06-11-25\\06-Nov-2025-405-30.pdf"
+pdf_path = "data/28-11-25/30-Nov-2025-405.pdf"
 
 DPI = 300
 MATCH_THRESHOLD = 0.3
+
+# Change these to adjust how much area around a found match is suppressed
+# to avoid detecting the same plot multiple times
 SUPPRESS_SCALE_X = 1.5
 SUPPRESS_SCALE_Y = 1.2
+
+# Change the search padding if your plots are larger and are being truncated
+SEARCH_PAD_X=80
+SEARCH_PAD_Y=150
+# SEARCH_PAD_Y=80
+
+# min area for contour to be considered a plot box; change if frame detection fails
+MIN_CONTOUR_AREA = 5000  
+
 FOLDER_NAME = pdf_path.split("\\")[-1]
 
 output_dir = Path(f"plots/png/{datetime.date.today()}/{FOLDER_NAME}")
@@ -39,8 +51,8 @@ def find_tight_plot_crop(
     y0,
     tw,
     th,
-    search_pad_x=80,
-    search_pad_y=80,
+    search_pad_x=SEARCH_PAD_X,
+    search_pad_y=SEARCH_PAD_Y,
     padding_x=5,
     padding_y=2,
 ):
@@ -83,7 +95,7 @@ def find_tight_plot_crop(
     for c in contours:
         x, y, w, h = cv2.boundingRect(c)
         area = w * h
-        if area < 5000:  # avoid tiny bits; tune if needed
+        if area < MIN_CONTOUR_AREA:  # avoid tiny bits; tune if needed
             continue
 
         # does this rect contain the template center?
@@ -147,8 +159,9 @@ for page_idx, page in enumerate(doc):
         sup_h = int(th * SUPPRESS_SCALE_Y)
         sx0 = max(0, x0 - sup_w // 2)
         sy0 = max(0, y0 - sup_h // 2)
-        sx1 = min(res.shape[1], x0 + tw + sup_w // 2)
-        sy1 = min(res.shape[0], y0 + th + sup_h // 2)
+        sx1 = min(round(res.shape[1]), x0 + tw + sup_w // 2)
+        sy1 = min(round(res.shape[0]), y0 + th + sup_h // 2)
+
         res[sy0:sy1, sx0:sx1] = 0.0
 
     print(f"Total matches on page {page_idx + 1}: {len(matches)}")
@@ -198,8 +211,11 @@ for page_idx, page in enumerate(doc):
                 cy1 = min(h, y0 + th + 20)
             else:
                 cx0, cy0, cx1, cy1 = coords
+            
+            
 
             crop = img_color[cy0:cy1, cx0:cx1]
+            print(crop.shape)
             if crop.size == 0:
                 print(
                     f"  Skipping empty crop for row {row_idx}, col {col_idx}"
